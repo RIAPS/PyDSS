@@ -39,7 +39,8 @@ TYPE_INFO = {
         'Frequency': 'double',
         'Taps': 'vector',
         '%stored': 'double',
-        'Distance': 'double'
+        'Distance': 'double',
+        'Action': 'string'
     }
 
 class DataType(Enum):
@@ -249,29 +250,34 @@ class helics_interface:
         for subscription in self.subscriptions.subscriptions:
             if subscription.subscribe:
                 value = None
-                if subscription.data_type == DataType.DOUBLE:
-                    value = helics.helicsInputGetDouble(subscription.sub)
-                elif subscription.data_type == DataType.VECTOR:
-                    value = helics.helicsInputGetVector(subscription.sub)
-                elif subscription.data_type == DataType.STRING:
-                    value = helics.helicsInputGetString(subscription.sub)
-                elif subscription.data_type == DataType.BOOLEAN:
-                    value = helics.helicsInputGetBoolean(subscription.sub)
-                elif subscription.data_type == DataType.INTEGER:
-                    value = helics.helicsInputGetInteger(subscription.sub)
-                    
-                if value and value != 0:
-                    if value > 1e6 or value < -1e6:
-                        value = 1.0 
-
-                value = value * subscription.multiplier
-                subscription.object.SetParameter(subscription.property, value) 
-                logger.info('Value for "{}.{}" changed to "{}"'.format(
-                        subscription.model,
-                        subscription.property,
-                        value
-                    ))
-
+                if helics.helicsInputGetByteCount(subscription.sub) != 0: 
+                    if helics.helicsInputIsUpdated(subscription.sub):  
+                        if subscription.data_type == DataType.DOUBLE:
+                            value = helics.helicsInputGetDouble(subscription.sub)
+                        elif subscription.data_type == DataType.VECTOR:
+                            value = helics.helicsInputGetVector(subscription.sub)
+                        elif subscription.data_type == DataType.STRING:
+                            value = helics.helicsInputGetString(subscription.sub)
+                        elif subscription.data_type == DataType.BOOLEAN:
+                            value = helics.helicsInputGetBoolean(subscription.sub)
+                        elif subscription.data_type == DataType.INTEGER:
+                            value = helics.helicsInputGetInteger(subscription.sub)
+                        
+                        if value: 
+                            if isinstance(value, (int, float, complex)) and not isinstance(value, bool):
+                                # if value != 0:
+                                #     if value > 1e6 or value < -1e6:
+                                #         value = 1.0 
+                                value = value * subscription.multiplier
+                                
+                        subscription.object.SetParameter(subscription.property, value) 
+                        logger.info('Value for "{}.{}" changed to "{}"'.format(
+                                subscription.model,
+                                subscription.property,
+                                value
+                            ))
+                        helics.helicsInputClearUpdate(subscription.sub)
+                
                 if self._settings.helics.iterative_mode:
                     if self.c_seconds != self.c_seconds_old:
                         subscription.states = [self.init_state] * self.n_states
